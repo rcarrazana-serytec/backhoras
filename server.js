@@ -5,10 +5,17 @@ require('dotenv').config();
 
 const app = express();
 app.use(express.json());
+
+// Configurar CORS con múltiples orígenes
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000').split(',').map(o => o.trim());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: corsOrigins,
   credentials: true
 }));
+
+
+
+
 
 const dbHost = process.env.DB_HOST;
 const dbUser = process.env.DB_USER;
@@ -16,26 +23,45 @@ const dbPassword = process.env.DB_PASSWORD;
 const dbName = process.env.DB_NAME;
 const dbPort = parseInt(process.env.DB_PORT, 10) || 3306;
 
-if (!dbHost || !dbUser || !dbPassword || !dbName) {
-  console.error('Faltan variables de entorno de base de datos. Crea un archivo .env con DB_HOST, DB_USER, DB_PASSWORD, DB_NAME y opcionalmente DB_PORT.');
-  process.exit(1);
+let db;
+
+if (process.env.NODE_ENV !== 'test') {
+  if (!dbHost || !dbUser || !dbPassword || !dbName) {
+    console.error('Faltan variables de entorno de base de datos. Crea un archivo .env con DB_HOST, DB_USER, DB_PASSWORD, DB_NAME y opcionalmente DB_PORT.');
+    process.exit(1);
+  }
+
+  db = mysql.createPool({
+    host: dbHost,
+    user: dbUser,
+    password: dbPassword,
+    database: dbName,
+    port: dbPort,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  });
+
+  db.getConnection((err, connection) => {
+    if (err) {
+      console.error('Error al conectar a la base de datos:', err.message);
+      return;
+    }
+    console.log('¡Conectado exitosamente a la base de datos remota!');
+    connection.release();
+  });
+} else {
+  db = {
+    query: (sql, params, callback) => {
+      if (typeof params === 'function') {
+        params(null, []);
+      } else if (typeof callback === 'function') {
+        callback(null, []);
+      }
+    }
+  };
 }
 
-const db = mysql.createConnection({
-  host: dbHost,
-  user: dbUser,
-  password: dbPassword,
-  database: dbName,
-  port: dbPort
-});
-
-db.connect((err) => {
-  if (err) {
-    console.error('Error al conectar a la base de datos:', err.message);
-    return;
-  }
-  console.log('¡Conectado exitosamente a la base de datos remota!');
-});
 
 // ─── Ruta de prueba ──────────────────────────────────────────────────────────
 app.get('/prueba', (req, res) => {
@@ -364,6 +390,11 @@ app.post('/jefatura/validar', (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT, 10) || 3001;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
-});
+
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor corriendo en puerto ${PORT}`);
+  });
+}
+
+module.exports = app;
