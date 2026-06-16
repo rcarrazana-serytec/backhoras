@@ -1,20 +1,32 @@
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
 app.use(express.json());
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true
 }));
 
+const dbHost = process.env.DB_HOST;
+const dbUser = process.env.DB_USER;
+const dbPassword = process.env.DB_PASSWORD;
+const dbName = process.env.DB_NAME;
+const dbPort = parseInt(process.env.DB_PORT, 10) || 3306;
+
+if (!dbHost || !dbUser || !dbPassword || !dbName) {
+  console.error('Faltan variables de entorno de base de datos. Crea un archivo .env con DB_HOST, DB_USER, DB_PASSWORD, DB_NAME y opcionalmente DB_PORT.');
+  process.exit(1);
+}
+
 const db = mysql.createConnection({
-  host: '191.101.235.7',
-  user: 'root_test',
-  password: 'testing.Root#26',
-  database: 'testing',
-  port: 3306
+  host: dbHost,
+  user: dbUser,
+  password: dbPassword,
+  database: dbName,
+  port: dbPort
 });
 
 db.connect((err) => {
@@ -351,6 +363,7 @@ app.post('/jefatura/validar', (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-app.listen(3001, () => {
-  console.log('Servidor corriendo en puerto 3001');
+const PORT = parseInt(process.env.PORT, 10) || 3001;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
